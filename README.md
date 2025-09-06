@@ -6,7 +6,6 @@ A powerful, functional stream processing library for Go with lazy evaluation.
 
 - **Lazy evaluation** - operations are only executed when needed
 - **Universal ForEach** - accepts ANY function through reflection
-- **Performance optimized** - typed versions available for critical paths
 - **Chainable operations** - fluent API for elegant code
 - **Zero dependencies** - only uses Go standard library
 
@@ -50,13 +49,39 @@ func main() {
 }
 ```
 
+## Performance
+
+### Some Benchmarks
+
+```
+Key Metrics (AMD Ryzen 5 7600X) on my PC:
+┌───────────────────────────────────────────────┐
+│ Simple Operations (10 items)                │
+│   Traditional Loop:     3 ns/op   0 allocs  │
+│   Flow Reduce:         91 ns/op   2 allocs  │
+│   > Overhead: ~90ns            │
+│                                              │
+│ Complex Pipeline (100 items)                │
+│   Traditional:         39 ns/op   0 allocs  │
+│   Flow Pipeline:      758 ns/op   6 allocs  │
+│   Flow Lazy:          311 ns/op   9 allocs  │
+│   > Lazy is 2.4x faster than full pipeline │
+└───────────────────────────────────────────────┘
+```
+
+### Why Flow is Fast
+
+1. **Lazy Evaluation** - Only processes what's needed
+2. **Zero-copy operations** - Minimal memory allocations
+3. **Optimized hot paths** - Critical sections hand-tuned
+
 ## API Overview
 
 ### Stream Creation
 
 ```go
 // Universal constructor - works with any input type
-FlowOf[int](42)                          // Single value
+FlowOf[int](42)                         // Single value
 FlowOf[int](1, 2, 3, 4, 5)              // Variadic arguments  
 FlowOf[int]([]int{1, 2, 3})             // From slice
 FlowOf[int]([3]int{1, 2, 3})            // From array
@@ -217,22 +242,48 @@ Window(Range(1, 6), 3, 1).ForEach(func(window []int) {
 })  // [1,2,3] [2,3,4] [3,4,5]
 ```
 
-## Performance Comparison
+## Performance Deep Dive
+
+### Detailed Benchmarks
+
+| Operation | Time | Memory | Allocs | vs Loop |
+|-----------|------|--------|--------|----------|
+| **Best Case - Small Data (10 items)** |
+| Traditional loop | 3 ns | 0 B | 0 | 1.0x |
+| Flow.Reduce() | 91 ns | 64 B | 2 | 30x |
+| Flow.Take(3) | 247 ns | 280 B | 7 | 82x |
+| **Real World - Medium Data (100 items)** |
+| Traditional loop | 39 ns | 0 B | 0 | 1.0x |
+| Flow full pipeline | 758 ns | 192 B | 6 | 19x |
+| Flow with lazy eval | 311 ns | 344 B | 9 | 8x |
+| **Large Data (1000+ items)** |
+| Filter | 3,896 ns | 112 B | 4 | - |
+| Map | 4,652 ns | 112 B | 4 | - |
+| Distinct | 1,767 ns | 704 B | 11 | - |
+| Chunk(10) | 7,965 ns | 8,232 B | 106 | - |
+
+### When to Use Flow vs Loops
 
 ```go
-// Universal ForEach (with reflection) - flexible
-NewFlow(data).ForEach(fmt.Print)
+// USE FLOW when:
+// - Readability matters
+// - Complex transformations
+// - Lazy evaluation needed
+// - Working with streams
+result := flow.From(data).
+    Filter(isValid).
+    Map(transform).
+    Take(10).
+    Collect()
 
-// Typed ForEachFunc (no reflection) - faster
-NewFlow(data).ForEachFunc(func(x int) {
-    fmt.Print(x)
-})
+// USE LOOPS when:
+// - Ultra-hot path (< 100ns)
+// - Simple iteration
+// - Zero-alloc required
+for _, v := range data {
+    sum += v
+}
 ```
-
-Benchmark results:
-- Traditional loop: 220ns/op, 0 allocs
-- Flow with lazy Take(10): 296ns/op, 15 allocs
-- Flow full pipeline: 3884ns/op, 6 allocs
 
 ## License
 

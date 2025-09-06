@@ -6,7 +6,6 @@ import (
 )
 
 // prepareArgs prepares arguments for function invocation via reflection.
-// This is an internal helper that shouldn't be exposed to users.
 func prepareArgs[T any](fnType reflect.Type, val T) []reflect.Value {
 	numIn := fnType.NumIn()
 
@@ -54,7 +53,6 @@ func ExecuteForEach[T any](source iter.Seq[T], fn any) error {
 	return nil
 }
 
-// invalidFunctionError is returned when ForEach receives a non-function argument.
 type invalidFunctionError struct {
 	Fn any
 }

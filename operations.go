@@ -27,7 +27,7 @@ func MapTo[T, R any](f Flow[T], mapper func(T) R) Flow[R] {
 //
 // Example:
 //
-//	unique := flow.Distinct(flow.From([]int{1, 2, 2, 3, 3, 3, 4}))
+//	unique := flow.Distinct(flow.NewFlow([]int{1, 2, 2, 3, 3, 3, 4}))
 func Distinct[T comparable](f Flow[T]) Flow[T] {
 	return Flow[T]{
 		source: func(yield func(T) bool) {
@@ -49,9 +49,9 @@ func Distinct[T comparable](f Flow[T]) Flow[T] {
 //
 // Example:
 //
-//	words := flow.From([]string{"hello", "world"})
+//	words := flow.NewFlow([]string{"hello", "world"})
 //	letters := flow.FlatMap(words, func(word string) flow.Flow[rune] {
-//	    return flow.From([]rune(word))
+//	    return flow.NewFlow([]rune(word))
 //	})
 func FlatMap[T, R any](f Flow[T], mapper func(T) Flow[R]) Flow[R] {
 	return Flow[R]{
@@ -86,7 +86,6 @@ func Chunk[T any](f Flow[T], size int) Flow[[]T] {
 			for val := range f.source {
 				chunk = append(chunk, val)
 				if len(chunk) == size {
-					// Create a copy to avoid sharing the underlying array
 					chunkCopy := make([]T, len(chunk))
 					copy(chunkCopy, chunk)
 					if !yield(chunkCopy) {
@@ -115,17 +114,21 @@ func Chunk[T any](f Flow[T], size int) Flow[[]T] {
 func Combine[T, U any](f1 Flow[T], f2 Flow[U]) Flow[Pair[T, U]] {
 	return Flow[Pair[T, U]]{
 		source: func(yield func(Pair[T, U]) bool) {
-			ch1 := f1.ToChannel(1)
-			ch2 := f2.ToChannel(1)
+			var vals1 []T
+			var vals2 []U
 
-			for {
-				v1, ok1 := <-ch1
-				v2, ok2 := <-ch2
-				if !ok1 || !ok2 {
-					break
-				}
-				if !yield(Pair[T, U]{First: v1, Second: v2}) {
-					break
+			for val := range f1.source {
+				vals1 = append(vals1, val)
+			}
+			for val := range f2.source {
+				vals2 = append(vals2, val)
+			}
+
+			minLen := min(len(vals2), len(vals1))
+
+			for i := range minLen {
+				if !yield(Pair[T, U]{First: vals1[i], Second: vals2[i]}) {
+					return
 				}
 			}
 		},
@@ -154,17 +157,21 @@ type Pair[T, U any] struct {
 func CombineWith[T, U, R any](f1 Flow[T], f2 Flow[U], combiner func(T, U) R) Flow[R] {
 	return Flow[R]{
 		source: func(yield func(R) bool) {
-			ch1 := f1.ToChannel(1)
-			ch2 := f2.ToChannel(1)
+			var vals1 []T
+			var vals2 []U
 
-			for {
-				v1, ok1 := <-ch1
-				v2, ok2 := <-ch2
-				if !ok1 || !ok2 {
-					break
-				}
-				if !yield(combiner(v1, v2)) {
-					break
+			for val := range f1.source {
+				vals1 = append(vals1, val)
+			}
+			for val := range f2.source {
+				vals2 = append(vals2, val)
+			}
+
+			minLen := min(len(vals2), len(vals1))
+
+			for i := range minLen {
+				if !yield(combiner(vals1[i], vals2[i])) {
+					return
 				}
 			}
 		},
@@ -178,9 +185,9 @@ func CombineWith[T, U, R any](f1 Flow[T], f2 Flow[U], combiner func(T, U) R) Flo
 //
 // Example:
 //
-//	flow1 := flow.From([]int{1, 2, 3})
-//	flow2 := flow.From([]int{4, 5, 6})
-//	flow3 := flow.From([]int{7, 8, 9})
+//	flow1 := flow.NewFlow([]int{1, 2, 3})
+//	flow2 := flow.NewFlow([]int{4, 5, 6})
+//	flow3 := flow.NewFlow([]int{7, 8, 9})
 //	merged := flow.Merge(flow1, flow2, flow3)
 //	// Produces: 1, 2, 3, 4, 5, 6, 7, 8, 9
 //
@@ -212,7 +219,7 @@ func Merge[T any](flows ...Flow[T]) Flow[T] {
 // Example:
 //
 //	people := []Person{{Name: "Alice", Age: 25}, {Name: "Bob", Age: 30}, {Name: "Charlie", Age: 25}}
-//	byAge := flow.GroupBy(flow.From(people), func(p Person) int { return p.Age })
+//	byAge := flow.GroupBy(flow.NewFlow(people), func(p Person) int { return p.Age })
 //	// Result: map[25:[{Alice 25} {Charlie 25}] 30:[{Bob 30}]]
 func GroupBy[T any, K comparable](f Flow[T], keyFunc func(T) K) map[K][]T {
 	result := make(map[K][]T)
@@ -230,7 +237,7 @@ func GroupBy[T any, K comparable](f Flow[T], keyFunc func(T) K) map[K][]T {
 // Example:
 //
 //	people := []Person{{Name: "Alice", Age: 25}, {Name: "Bob", Age: 30}, {Name: "Charlie", Age: 25}}
-//	groups := flow.GroupByFlow(flow.From(people), func(p Person) int { return p.Age })
+//	groups := flow.GroupByFlow(flow.NewFlow(people), func(p Person) int { return p.Age })
 //	groups.ForEach(func(kv KeyValue[int, []Person]) {
 //	    fmt.Printf("Age %d: %v\n", kv.Key, kv.Value)
 //	})

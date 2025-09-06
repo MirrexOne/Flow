@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/MirrexOne/Flow/internal"
 	"iter"
+
+	"github.com/MirrexOne/Flow/internal"
 )
 
 // Flow represents a lazy stream of elements that can be processed functionally.
@@ -57,12 +58,6 @@ func Empty[T any]() Flow[T] {
 	}
 }
 
-// From is kept for backward compatibility.
-// Deprecated: Use NewFlow instead.
-func From[T any](values []T) Flow[T] {
-	return NewFlow(values)
-}
-
 // Of creates a Flow from variadic arguments.
 //
 // Example:
@@ -73,12 +68,10 @@ func Of[T any](values ...T) Flow[T] {
 	return NewFlow(values)
 }
 
-// FromSlice is an explicit constructor from a slice.
 func FromSlice[T any](values []T) Flow[T] {
 	return NewFlow(values)
 }
 
-// Values creates a Flow from variadic arguments.
 func Values[T any](values ...T) Flow[T] {
 	return NewFlow(values)
 }
@@ -238,6 +231,9 @@ func FromFunc[T any](generator func(yield func(T) bool)) Flow[T] {
 //
 //	flow.Range(1, 6).ForEach(fmt.Print) // Output: 12345
 func Range(start, end int) Flow[int] {
+	if start >= end {
+		return Empty[int]()
+	}
 	return Flow[int]{
 		source: func(yield func(int) bool) {
 			for i := start; i < end; i++ {
@@ -296,7 +292,6 @@ func FromChannel[T any](ch <-chan T) Flow[T] {
 	}
 }
 
-// ============ Intermediate Operations (Lazy) ============
 
 // Filter returns a Flow containing only elements that match the predicate.
 // This is a lazy operation - the predicate is not called until the stream is consumed.
@@ -343,17 +338,23 @@ func (f Flow[T]) Map(mapper func(T) T) Flow[T] {
 //
 //	flow.Infinite(func(i int) int { return i }).Take(5)
 func (f Flow[T]) Take(n int) Flow[T] {
+	if n <= 0 {
+		return Empty[T]()
+	}
 	return Flow[T]{
 		source: func(yield func(T) bool) {
+			if n == 0 {
+				return
+			}
 			count := 0
 			for val := range f.source {
-				if count >= n {
-					return
-				}
 				if !yield(val) {
 					return
 				}
 				count++
+				if count >= n {
+					return
+				}
 			}
 		},
 	}
@@ -431,8 +432,8 @@ func (f Flow[T]) SkipWhile(predicate func(T) bool) Flow[T] {
 //
 // Example:
 //
-//	first := flow.From([]int{1, 2, 3})
-//	second := flow.From([]int{4, 5, 6})
+//	first := flow.NewFlow([]int{1, 2, 3})
+//	second := flow.NewFlow([]int{4, 5, 6})
 //	combined := first.Concat(second) // [1, 2, 3, 4, 5, 6]
 func (f Flow[T]) Concat(other Flow[T]) Flow[T] {
 	return Flow[T]{
@@ -457,9 +458,9 @@ func (f Flow[T]) Concat(other Flow[T]) Flow[T] {
 //
 // Example:
 //
-//	flow1 := flow.From([]int{1, 2, 3})
-//	flow2 := flow.From([]int{4, 5, 6})
-//	flow3 := flow.From([]int{7, 8, 9})
+//	flow1 := flow.NewFlow([]int{1, 2, 3})
+//	flow2 := flow.NewFlow([]int{4, 5, 6})
+//	flow3 := flow.NewFlow([]int{7, 8, 9})
 //	merged := flow1.Merge(flow2, flow3) // [1, 2, 3, 4, 5, 6, 7, 8, 9]
 //
 //	// Can also be used without arguments (returns the same flow)
@@ -471,13 +472,11 @@ func (f Flow[T]) Merge(others ...Flow[T]) Flow[T] {
 
 	return Flow[T]{
 		source: func(yield func(T) bool) {
-			// First yield elements from the receiver
 			for val := range f.source {
 				if !yield(val) {
 					return
 				}
 			}
-			// Then yield elements from all other flows
 			for _, other := range others {
 				for val := range other.source {
 					if !yield(val) {
@@ -512,7 +511,6 @@ func (f Flow[T]) Peek(action func(T)) Flow[T] {
 	}
 }
 
-// ============ Terminal Operations (Execute the Stream) ============
 
 // ForEach executes the given function for each element in the stream.
 // This is a TERMINAL operation - it consumes the stream immediately.
@@ -521,9 +519,9 @@ func (f Flow[T]) Peek(action func(T)) Flow[T] {
 //
 // Example:
 //
-//	flow.From([]int{1, 2, 3}).ForEach(fmt.Print)        // Works with fmt.Print!
-//	flow.From([]int{1, 2, 3}).ForEach(fmt.Println)      // Works with fmt.Println!
-//	flow.From([]int{1, 2, 3}).ForEach(customFunc)       // Works with any function!
+//	flow.NewFlow([]int{1, 2, 3}).ForEach(fmt.Print)        // Works with fmt.Print!
+//	flow.NewFlow([]int{1, 2, 3}).ForEach(fmt.Println)      // Works with fmt.Println!
+//	flow.NewFlow([]int{1, 2, 3}).ForEach(customFunc)       // Works with any function!
 func (f Flow[T]) ForEach(fn any) {
 	if err := internal.ExecuteForEach(f.source, fn); err != nil {
 		panic(err)
@@ -552,7 +550,7 @@ func (f Flow[T]) ForEachFunc(action func(T)) {
 //
 //	numbers := flow.Range(1, 6).Collect() // Returns []int{1, 2, 3, 4, 5}
 func (f Flow[T]) Collect() []T {
-	var result []T
+	result := make([]T, 0, 16)
 	for val := range f.source {
 		result = append(result, val)
 	}
@@ -628,7 +626,7 @@ func (f Flow[T]) Last() (T, bool) {
 //
 // Example:
 //
-//	hasEven := flow.From([]int{1, 3, 5, 6}).AnyMatch(func(x int) bool { return x%2 == 0 })
+//	hasEven := flow.NewFlow([]int{1, 3, 5, 6}).AnyMatch(func(x int) bool { return x%2 == 0 })
 func (f Flow[T]) AnyMatch(predicate func(T) bool) bool {
 	for val := range f.source {
 		if predicate(val) {
@@ -643,7 +641,7 @@ func (f Flow[T]) AnyMatch(predicate func(T) bool) bool {
 //
 // Example:
 //
-//	allPositive := flow.From([]int{1, 2, 3}).AllMatch(func(x int) bool { return x > 0 })
+//	allPositive := flow.NewFlow([]int{1, 2, 3}).AllMatch(func(x int) bool { return x > 0 })
 func (f Flow[T]) AllMatch(predicate func(T) bool) bool {
 	for val := range f.source {
 		if !predicate(val) {
@@ -658,7 +656,7 @@ func (f Flow[T]) AllMatch(predicate func(T) bool) bool {
 //
 // Example:
 //
-//	noneNegative := flow.From([]int{1, 2, 3}).NoneMatch(func(x int) bool { return x < 0 })
+//	noneNegative := flow.NewFlow([]int{1, 2, 3}).NoneMatch(func(x int) bool { return x < 0 })
 func (f Flow[T]) NoneMatch(predicate func(T) bool) bool {
 	return !f.AnyMatch(predicate)
 }

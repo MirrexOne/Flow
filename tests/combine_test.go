@@ -122,7 +122,6 @@ func TestCombineWith(t *testing.T) {
 			return a * b
 		}).Collect()
 
-		// Should only have 3 elements (length of shorter flow)
 		if len(result) != 3 {
 			t.Errorf("Expected 3 elements, got %d", len(result))
 		}
@@ -142,7 +141,6 @@ func TestCombineChaining(t *testing.T) {
 		flow1 := Range(1, 6)   // 1, 2, 3, 4, 5
 		flow2 := Range(10, 15) // 10, 11, 12, 13, 14
 
-		// First combine, then extract sums
 		pairs := Combine(flow1, flow2).Collect()
 		var sums []int
 		for _, p := range pairs {
@@ -155,15 +153,10 @@ func TestCombineChaining(t *testing.T) {
 			}).
 			Collect()
 
-		// Sums: 11, 13, 15, 17, 19
-		// Even sums: none actually, let me fix this
-		// Actually: 1+10=11, 2+11=13, 3+12=15, 4+13=17, 5+14=19
-		// None are even, so result should be empty
 		if len(result) != 0 {
 			t.Errorf("Expected empty result for odd sums, got %v", result)
 		}
 
-		// Test with different range that produces even sums
 		flow3 := Range(2, 7)   // 2, 3, 4, 5, 6
 		flow4 := Range(10, 15) // 10, 11, 12, 13, 14
 
@@ -176,8 +169,6 @@ func TestCombineChaining(t *testing.T) {
 			}).
 			Collect()
 
-		// Sums: 2+10=12, 3+11=14, 4+12=16, 5+13=18, 6+14=20
-		// All are even!
 		expected := []int{12, 14, 16, 18, 20}
 
 		if len(result2) != len(expected) {
@@ -208,7 +199,6 @@ func TestCombineChaining(t *testing.T) {
 			}).
 			Collect()
 
-		// Map to string descriptions
 		var descriptions []string
 		for _, p := range people {
 			descriptions = append(descriptions, fmt.Sprintf("%s is %d years old", p.Name, p.Age))

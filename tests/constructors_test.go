@@ -20,7 +20,6 @@ func TestConstructors(t *testing.T) {
 			t.Errorf("Expected 5 elements, got %d", len(result))
 		}
 
-		// Test with strings
 		strings := Of("hello", "world").Collect()
 		if len(strings) != 2 {
 			t.Errorf("Expected 2 strings, got %d", len(strings))
@@ -75,13 +74,6 @@ func TestConstructors(t *testing.T) {
 		}
 	})
 
-	t.Run("From (backward compatibility)", func(t *testing.T) {
-		// Should still work for backward compatibility
-		result := From([]int{1, 2, 3}).Collect()
-		if len(result) != 3 {
-			t.Errorf("Expected 3 elements, got %d", len(result))
-		}
-	})
 }
 
 func TestVariadicConstructorsWithDifferentTypes(t *testing.T) {
@@ -115,13 +107,11 @@ func TestVariadicConstructorsWithDifferentTypes(t *testing.T) {
 	})
 
 	t.Run("Zero variadic arguments", func(t *testing.T) {
-		// Of with no arguments should create empty flow
 		result := Of[int]().Collect()
 		if len(result) != 0 {
 			t.Errorf("Expected empty flow, got %v", result)
 		}
 
-		// Values with no arguments
 		result2 := Values[string]().Collect()
 		if len(result2) != 0 {
 			t.Errorf("Expected empty flow, got %v", result2)

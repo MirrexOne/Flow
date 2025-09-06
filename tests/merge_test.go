@@ -7,7 +7,7 @@ import (
 
 func TestMergeMethod(t *testing.T) {
 	t.Run("Merge with no arguments", func(t *testing.T) {
-		flow1 := From([]int{1, 2, 3})
+		flow1 := NewFlow([]int{1, 2, 3})
 		result := flow1.Merge().Collect()
 
 		expected := []int{1, 2, 3}
@@ -22,8 +22,8 @@ func TestMergeMethod(t *testing.T) {
 	})
 
 	t.Run("Merge with one flow", func(t *testing.T) {
-		flow1 := From([]int{1, 2, 3})
-		flow2 := From([]int{4, 5, 6})
+		flow1 := NewFlow([]int{1, 2, 3})
+		flow2 := NewFlow([]int{4, 5, 6})
 		result := flow1.Merge(flow2).Collect()
 
 		expected := []int{1, 2, 3, 4, 5, 6}
@@ -38,10 +38,10 @@ func TestMergeMethod(t *testing.T) {
 	})
 
 	t.Run("Merge with multiple flows", func(t *testing.T) {
-		flow1 := From([]int{1, 2, 3})
-		flow2 := From([]int{4, 5, 6})
-		flow3 := From([]int{7, 8, 9})
-		flow4 := From([]int{10})
+		flow1 := NewFlow([]int{1, 2, 3})
+		flow2 := NewFlow([]int{4, 5, 6})
+		flow3 := NewFlow([]int{7, 8, 9})
+		flow4 := NewFlow([]int{10})
 
 		result := flow1.Merge(flow2, flow3, flow4).Collect()
 
@@ -57,11 +57,11 @@ func TestMergeMethod(t *testing.T) {
 	})
 
 	t.Run("Merge with empty flows", func(t *testing.T) {
-		flow1 := From([]int{1, 2, 3})
-		flow2 := Empty[int]()
-		flow3 := From([]int{4, 5})
+		flow1 := NewFlow([]int{1, 2, 3})
+		empty := Empty[int]()
+		flow3 := NewFlow([]int{4, 5})
 
-		result := flow1.Merge(flow2, flow3).Collect()
+		result := flow1.Merge(empty, flow3).Collect()
 
 		expected := []int{1, 2, 3, 4, 5}
 		if len(result) != len(expected) {
@@ -75,11 +75,10 @@ func TestMergeMethod(t *testing.T) {
 	})
 
 	t.Run("Chain Merge operations", func(t *testing.T) {
-		flow1 := From([]int{1, 2})
-		flow2 := From([]int{3, 4})
-		flow3 := From([]int{5, 6})
+		flow1 := NewFlow([]int{1, 2})
+		flow2 := NewFlow([]int{3, 4})
+		flow3 := NewFlow([]int{5, 6})
 
-		// Test chaining with method
 		result := flow1.Merge(flow2).Merge(flow3).Collect()
 
 		expected := []int{1, 2, 3, 4, 5, 6}
@@ -128,7 +127,7 @@ func TestMergeFunction(t *testing.T) {
 	})
 
 	t.Run("Merge function with single flow", func(t *testing.T) {
-		flow1 := From([]int{1, 2, 3})
+		flow1 := NewFlow([]int{1, 2, 3})
 		result := Merge(flow1).Collect()
 
 		expected := []int{1, 2, 3}
@@ -143,9 +142,9 @@ func TestMergeFunction(t *testing.T) {
 	})
 
 	t.Run("Merge function with multiple flows", func(t *testing.T) {
-		flow1 := From([]string{"a", "b"})
-		flow2 := From([]string{"c", "d"})
-		flow3 := From([]string{"e"})
+		flow1 := NewFlow([]string{"a", "b"})
+		flow2 := NewFlow([]string{"c", "d"})
+		flow3 := NewFlow([]string{"e"})
 
 		result := Merge(flow1, flow2, flow3).Collect()
 
