@@ -1,1 +1,243 @@
-# Flow
+# Flow - Lazy Stream Processing for Go
+
+A powerful, functional stream processing library for Go with lazy evaluation.
+
+## Features
+
+- **Lazy evaluation** - operations are only executed when needed
+- **Universal ForEach** - accepts ANY function through reflection
+- **Performance optimized** - typed versions available for critical paths
+- **Chainable operations** - fluent API for elegant code
+- **Zero dependencies** - only uses Go standard library
+
+## Installation
+
+```bash
+go get github.com/MirrexOne/Flow
+```
+
+Requires Go 1.23+ for iterator support.
+
+## Quick Start
+
+```go
+package main
+
+import (
+    "fmt"
+    . "github.com/MirrexOne/Flow"
+)
+
+func main() {
+    // Multiple ways to create flows:
+    
+    // From slice
+    s := []int{1, 2, 3, 4, 5}
+    NewFlow(s).ForEach(fmt.Print)  // Output: 12345
+    
+    // Variadic constructor
+    Of(1, 2, 3, 4, 5).ForEach(func(x int) {
+        fmt.Print(x, " ")
+    })  // Output: 1 2 3 4 5
+    
+    // Complex pipeline
+    Values(1, 2, 3, 4, 5).
+        Filter(func(x int) bool { return x%2 == 0 }).
+        Map(func(x int) int { return x * x }).
+        ForEach(func(x int) {
+            fmt.Printf("Result: %d\n", x)
+        })
+}
+```
+
+## API Overview
+
+### Stream Creation
+
+```go
+// Universal constructor - works with any input type
+FlowOf[int](42)                          // Single value
+FlowOf[int](1, 2, 3, 4, 5)              // Variadic arguments  
+FlowOf[int]([]int{1, 2, 3})             // From slice
+FlowOf[int]([3]int{1, 2, 3})            // From array
+FlowOf[int](ch)                         // From channel
+FlowOf[int](anotherFlow)                // From existing Flow
+FlowOf[string](map[string]int{...})     // Map keys
+FlowOf[int](map[string]int{...})        // Map values
+
+// Alternative constructors
+NewFlow([]int{1, 2, 3})        // From slice
+Of(1, 2, 3)                    // Variadic arguments
+Values(1, 2, 3)                // Alternative variadic
+Single(42)                     // Single value
+Empty[int]()                   // Empty flow
+
+// Generators
+Range(1, 10)                   // Numbers from 1 to 9
+Infinite(func(i int) T)        // Infinite stream
+FromChannel(ch)                // From channel
+FromFunc(generator)            // Custom generator
+
+// Backward compatibility
+From([]int{1, 2, 3})           // Alias for NewFlow
+```
+
+### Intermediate Operations (Lazy)
+
+These operations return a new `Flow` and are not executed until a terminal operation is called:
+
+```go
+.Filter(predicate)             // Keep matching elements
+.Map(mapper)                   // Transform elements (same type)
+.Take(n)                       // First n elements
+.Skip(n)                       // Skip first n elements
+.TakeWhile(predicate)          // Take while condition is true
+.SkipWhile(predicate)          // Skip while condition is true
+.Peek(action)                  // Debug/side effects
+.Concat(other)                 // Append another flow
+.Merge(others...)              // Merge multiple flows
+
+// Standalone functions (type transformations)
+MapTo(flow, mapper)            // Transform to different type
+Distinct(flow)                 // Remove duplicates
+FlatMap(flow, mapper)          // Flatten nested flows
+Chunk(flow, size)              // Group into fixed-size chunks
+Window(flow, size, step)       // Sliding/tumbling windows
+```
+
+### Terminal Operations (Execute)
+
+These operations consume the stream and produce a result:
+
+```go
+.ForEach(fn)                   // Execute function for each element (ANY function!)
+.ForEachFunc(fn)               // Type-safe version (faster)
+.Collect()                     // Gather into slice
+.Count()                       // Count elements
+.Reduce(initial, reducer)      // Combine elements
+.First()                       // Get first element
+.Last()                        // Get last element
+.AnyMatch(predicate)           // Check if any match
+.AllMatch(predicate)           // Check if all match
+.NoneMatch(predicate)          // Check if none match
+.FindFirst(predicate)          // Find first matching element
+.ToChannel(bufferSize)         // Convert to channel
+
+// Standalone terminal operations
+GroupBy(flow, keyFunc)         // Group by key into map
+Partition(flow, predicate)     // Split into matching/non-matching
+```
+
+## Complete Examples
+
+### Basic Pipeline
+```go
+Range(1, 11).
+    Filter(func(x int) bool { return x%2 == 0 }).
+    Map(func(x int) int { return x * x }).
+    Take(3).
+    ForEach(func(x int) { fmt.Println(x) })
+// Output: 4, 16, 36
+```
+
+### Working with Structs
+```go
+type Person struct {
+    Name string
+    Age  int
+}
+
+Of(
+    Person{"Alice", 25},
+    Person{"Bob", 30},
+    Person{"Charlie", 35},
+).
+    Filter(func(p Person) bool { return p.Age > 25 }).
+    ForEach(func(p Person) {
+        fmt.Printf("%s is %d\n", p.Name, p.Age)
+    })
+```
+
+### Infinite Streams
+```go
+// Fibonacci sequence
+Infinite(func(i int) int {
+    if i < 2 { return i }
+    a, b := 0, 1
+    for j := 2; j <= i; j++ {
+        a, b = b, a+b
+    }
+    return b
+}).Take(10).Collect()
+// [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
+```
+
+### Advanced Operations
+```go
+// FlatMap
+words := Of("hello", "world")
+FlatMap(words, func(word string) Flow[rune] {
+    return NewFlow([]rune(word))
+}).Collect()  // ['h','e','l','l','o','w','o','r','l','d']
+
+// Chunk
+Chunk(Range(1, 11), 3).ForEach(func(chunk []int) {
+    fmt.Println(chunk)
+})  // [1,2,3] [4,5,6] [7,8,9] [10]
+
+// Combine (formerly Zip)
+names := Of("Alice", "Bob")
+ages := Of(25, 30)
+Combine(names, ages).ForEach(func(pair Pair[string, int]) {
+    fmt.Printf("%s: %d\n", pair.First, pair.Second)
+})
+
+// CombineWith for custom combination
+CombineWith(names, ages, func(name string, age int) string {
+    return fmt.Sprintf("%s is %d", name, age)
+}).ForEach(fmt.Println)
+
+// Merge multiple flows
+flow1 := From([]int{1, 2, 3})
+flow2 := From([]int{4, 5, 6})
+flow1.Merge(flow2).Collect()  // [1, 2, 3, 4, 5, 6]
+
+// GroupBy operation
+people := []Person{{Name: "Alice", Age: 25}, {Name: "Bob", Age: 30}, {Name: "Charlie", Age: 25}}
+byAge := GroupBy(From(people), func(p Person) int { return p.Age })
+// Result: map[25:[{Alice 25} {Charlie 25}] 30:[{Bob 30}]]
+
+// Partition operation
+evens, odds := Partition(Range(1, 11), func(x int) bool { return x%2 == 0 })
+// evens: [2, 4, 6, 8, 10], odds: [1, 3, 5, 7, 9]
+
+// Window operation (sliding windows)
+Window(Range(1, 6), 3, 1).ForEach(func(window []int) {
+    fmt.Println(window)
+})  // [1,2,3] [2,3,4] [3,4,5]
+```
+
+## Performance Comparison
+
+```go
+// Universal ForEach (with reflection) - flexible
+NewFlow(data).ForEach(fmt.Print)
+
+// Typed ForEachFunc (no reflection) - faster
+NewFlow(data).ForEachFunc(func(x int) {
+    fmt.Print(x)
+})
+```
+
+Benchmark results:
+- Traditional loop: 220ns/op, 0 allocs
+- Flow with lazy Take(10): 296ns/op, 15 allocs
+- Flow full pipeline: 3884ns/op, 6 allocs
+
+## License
+
+MIT License
+
+## Author
+
+Created by MirrexOne
