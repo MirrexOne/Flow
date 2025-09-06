@@ -292,7 +292,6 @@ func FromChannel[T any](ch <-chan T) Flow[T] {
 	}
 }
 
-
 // Filter returns a Flow containing only elements that match the predicate.
 // This is a lazy operation - the predicate is not called until the stream is consumed.
 //
@@ -510,7 +509,6 @@ func (f Flow[T]) Peek(action func(T)) Flow[T] {
 		},
 	}
 }
-
 
 // ForEach executes the given function for each element in the stream.
 // This is a TERMINAL operation - it consumes the stream immediately.

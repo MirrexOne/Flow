@@ -56,16 +56,16 @@ func main() {
 ```
 Key Metrics (AMD Ryzen 5 7600X) on my PC:
 ┌───────────────────────────────────────────────┐
-│ Simple Operations (10 items)                │
-│   Traditional Loop:     3 ns/op   0 allocs  │
-│   Flow Reduce:         91 ns/op   2 allocs  │
-│   > Overhead: ~90ns            │
-│                                              │
-│ Complex Pipeline (100 items)                │
-│   Traditional:         39 ns/op   0 allocs  │
-│   Flow Pipeline:      758 ns/op   6 allocs  │
-│   Flow Lazy:          311 ns/op   9 allocs  │
-│   > Lazy is 2.4x faster than full pipeline │
+│ Simple Operations (10 items)                  │
+│   Default Loop:     3 ns/op   0 allocs        │
+│   Flow Reduce:         91 ns/op   2 allocs    │
+│   > Overhead: ~90ns                           │
+│                                               │
+│ Complex Pipeline (100 items)                  │
+│   Traditional:         39 ns/op   0 allocs    │
+│   Flow Pipeline:      758 ns/op   6 allocs    │
+│   Flow Lazy:          311 ns/op   9 allocs    │
+│   > Lazy is 2.4x faster than full pipeline    │
 └───────────────────────────────────────────────┘
 ```
 
@@ -210,7 +210,6 @@ Chunk(Range(1, 11), 3).ForEach(func(chunk []int) {
     fmt.Println(chunk)
 })  // [1,2,3] [4,5,6] [7,8,9] [10]
 
-// Combine (formerly Zip)
 names := Of("Alice", "Bob")
 ages := Of(25, 30)
 Combine(names, ages).ForEach(func(pair Pair[string, int]) {
@@ -223,13 +222,13 @@ CombineWith(names, ages, func(name string, age int) string {
 }).ForEach(fmt.Println)
 
 // Merge multiple flows
-flow1 := From([]int{1, 2, 3})
-flow2 := From([]int{4, 5, 6})
+flow1 := NewFlow([]int{1, 2, 3})
+flow2 := NewFlow([]int{4, 5, 6})
 flow1.Merge(flow2).Collect()  // [1, 2, 3, 4, 5, 6]
 
 // GroupBy operation
 people := []Person{{Name: "Alice", Age: 25}, {Name: "Bob", Age: 30}, {Name: "Charlie", Age: 25}}
-byAge := GroupBy(From(people), func(p Person) int { return p.Age })
+byAge := GroupBy(NewFlow(people), func(p Person) int { return p.Age })
 // Result: map[25:[{Alice 25} {Charlie 25}] 30:[{Bob 30}]]
 
 // Partition operation
@@ -248,19 +247,22 @@ Window(Range(1, 6), 3, 1).ForEach(func(window []int) {
 
 | Operation | Time | Memory | Allocs | vs Loop |
 |-----------|------|--------|--------|----------|
-| **Best Case - Small Data (10 items)** |
-| Traditional loop | 3 ns | 0 B | 0 | 1.0x |
-| Flow.Reduce() | 91 ns | 64 B | 2 | 30x |
-| Flow.Take(3) | 247 ns | 280 B | 7 | 82x |
-| **Real World - Medium Data (100 items)** |
-| Traditional loop | 39 ns | 0 B | 0 | 1.0x |
-| Flow full pipeline | 758 ns | 192 B | 6 | 19x |
-| Flow with lazy eval | 311 ns | 344 B | 9 | 8x |
-| **Large Data (1000+ items)** |
-| Filter | 3,896 ns | 112 B | 4 | - |
-| Map | 4,652 ns | 112 B | 4 | - |
-| Distinct | 1,767 ns | 704 B | 11 | - |
-| Chunk(10) | 7,965 ns | 8,232 B | 106 | - |
+| **Small Data (10 items)** |
+| Default loop* | 2.3 ns | 0 B | 0 | 1.0x |
+| Flow.Reduce() | 53 ns | 64 B | 2 | 23x |
+| Flow.Take(3) | 100 ns | 280 B | 7 | 44x |
+| **Medium Data (100 items)** |
+| Default loop* | 23 ns | 0 B | 0 | 1.0x |
+| Flow full pipeline | 465 ns | 192 B | 6 | 20x |
+| Flow with lazy eval | 161 ns | 344 B | 9 | 7x |
+| **Large Data (1000 items)** |
+| Default loop* | 230 ns | 0 B | 0 | 1.0x |
+| Filter | 2,562 ns | 112 B | 4 | 11x |
+| Map | 2,976 ns | 112 B | 4 | 13x |
+| Distinct | 888 ns | 704 B | 11 | 4x |
+| Chunk(10) | 3,956 ns | 8,232 B | 106 | 17x |
+
+*Estimated for equivalent operations
 
 ### When to Use Flow vs Loops
 
@@ -270,7 +272,7 @@ Window(Range(1, 6), 3, 1).ForEach(func(window []int) {
 // - Complex transformations
 // - Lazy evaluation needed
 // - Working with streams
-result := flow.From(data).
+result := flow.NewFlow(data).
     Filter(isValid).
     Map(transform).
     Take(10).

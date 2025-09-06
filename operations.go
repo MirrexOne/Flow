@@ -102,7 +102,6 @@ func Chunk[T any](f Flow[T], size int) Flow[[]T] {
 }
 
 // Combine merges two flows into pairs.
-// The name 'Combine' is more descriptive in Go context than 'Zip'.
 // The resulting flow ends when either input flow ends.
 //
 // Example:
