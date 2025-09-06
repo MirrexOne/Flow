@@ -189,7 +189,7 @@ func TestWindow(t *testing.T) {
 func TestFlatMap(t *testing.T) {
 	t.Run("Flatten words to characters", func(t *testing.T) {
 		words := NewFlow([]string{"ab", "cd"})
-		result := FlatMap(words, func(word string) Flow[rune] {
+		result := FlatMap(words, func(word string) Flow[rune, rune] {
 			return NewFlow([]rune(word))
 		}).Collect()
 
@@ -206,7 +206,7 @@ func TestFlatMap(t *testing.T) {
 
 	t.Run("Flatten ranges", func(t *testing.T) {
 		ranges := NewFlow([]int{2, 3, 2})
-		result := FlatMap(ranges, func(n int) Flow[int] {
+		result := FlatMap(ranges, func(n int) Flow[int, int] {
 			return Range(1, n+1)
 		}).Collect()
 

@@ -1,8 +1,9 @@
 package flow_test
 
 import (
-	. "github.com/MirrexOne/Flow"
 	"testing"
+
+	. "github.com/MirrexOne/Flow"
 )
 
 func TestMergeMethod(t *testing.T) {
@@ -96,16 +97,15 @@ func TestMergeMethod(t *testing.T) {
 		flow1 := Range(1, 4) // 1, 2, 3
 		flow2 := Range(4, 7) // 4, 5, 6
 
-		result := flow1.
+		result := CollectAny(flow1.
 			Merge(flow2).
 			Filter(func(x int) bool { return x%2 == 0 }).
-			Map(func(x int) int { return x * 2 }).
-			Collect()
+			Map(func(x int) int { return x * 2 }))
 
 		// Original: 1, 2, 3, 4, 5, 6
 		// After filter (even only): 2, 4, 6
 		// After map (*2): 4, 8, 12
-		expected := []int{4, 8, 12}
+		expected := []any{4, 8, 12}
 		if len(result) != len(expected) {
 			t.Errorf("Expected %v, got %v", expected, result)
 		}
@@ -119,7 +119,7 @@ func TestMergeMethod(t *testing.T) {
 
 func TestMergeFunction(t *testing.T) {
 	t.Run("Merge function with no arguments", func(t *testing.T) {
-		result := Merge[int]().Collect()
+		result := Merge[int, int]().Collect()
 
 		if len(result) != 0 {
 			t.Errorf("Expected empty result, got %v", result)

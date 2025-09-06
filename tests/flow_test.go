@@ -1,8 +1,10 @@
 package flow_test
 
 import (
-	. "github.com/MirrexOne/Flow"
+	"fmt"
 	"testing"
+
+	. "github.com/MirrexOne/Flow"
 )
 
 func TestFlowCorrectness(t *testing.T) {
@@ -23,11 +25,27 @@ func TestFlowCorrectness(t *testing.T) {
 	})
 
 	t.Run("Map", func(t *testing.T) {
-		result := NewFlow([]int{1, 2, 3}).
-			Map(func(x int) int { return x * 2 }).
-			Collect()
+		result := CollectAny(NewFlow([]int{1, 2, 3}).
+			Map(func(x int) int { return x * 2 }))
 
-		expected := []int{2, 4, 6}
+		expected := []any{2, 4, 6}
+		if len(result) != len(expected) {
+			t.Errorf("Expected %v, got %v", expected, result)
+		}
+		for i := range result {
+			if result[i] != expected[i] {
+				t.Errorf("Expected %v, got %v", expected, result)
+			}
+		}
+	})
+
+	t.Run("Map Type Transformation", func(t *testing.T) {
+		result := CollectAny(NewFlow([]int{1, 2, 3}).
+			Map(func(x any) any {
+				return fmt.Sprintf("num_%d", x.(int))
+			}))
+
+		expected := []any{"num_1", "num_2", "num_3"}
 		if len(result) != len(expected) {
 			t.Errorf("Expected %v, got %v", expected, result)
 		}

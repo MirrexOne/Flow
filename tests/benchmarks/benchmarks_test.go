@@ -12,7 +12,7 @@ func BenchmarkSimpleOperations(b *testing.B) {
 
 	b.Run("Traditional Loop Sum", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			sum := 0
 			for _, v := range data {
 				sum += v
@@ -25,7 +25,7 @@ func BenchmarkSimpleOperations(b *testing.B) {
 		b.ReportAllocs()
 		f := flow.NewFlow(data)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			sum := f.Reduce(0, func(acc, x int) int { return acc + x })
 			_ = sum
 		}
@@ -35,7 +35,7 @@ func BenchmarkSimpleOperations(b *testing.B) {
 		b.ReportAllocs()
 		f := flow.NewFlow(data)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			result := f.Take(3).Collect()
 			_ = result
 		}
@@ -52,7 +52,7 @@ func BenchmarkFlowVsLoop(b *testing.B) {
 
 	b.Run("Traditional Loop", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			sum := 0
 			for _, v := range data {
 				if v%2 == 0 {
@@ -65,14 +65,13 @@ func BenchmarkFlowVsLoop(b *testing.B) {
 
 	b.Run("Flow API", func(b *testing.B) {
 		b.ReportAllocs()
-		// Pre-create the flow to avoid creation overhead
 		f := flow.NewFlow(data)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			sum := f.
+		for b.Loop() {
+			sum := flow.ReduceAny(f.
 				Filter(func(x int) bool { return x%2 == 0 }).
-				Map(func(x int) int { return x * x }).
-				Reduce(0, func(acc, x int) int { return acc + x })
+				Map(func(x int) int { return x * x }),
+				0, func(acc, x any) any { return acc.(int) + x.(int) })
 			_ = sum
 		}
 	})
@@ -81,7 +80,7 @@ func BenchmarkFlowVsLoop(b *testing.B) {
 		b.ReportAllocs()
 		f := flow.NewFlow(data)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			// Only take first 5 even numbers - lazy evaluation benefit
 			result := f.
 				Filter(func(x int) bool { return x%2 == 0 }).
@@ -103,7 +102,7 @@ func BenchmarkFlowOperations(b *testing.B) {
 		b.ReportAllocs()
 		f := flow.NewFlow(data)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			f.Filter(func(x int) bool { return x%2 == 0 }).Count()
 		}
 	})
@@ -112,7 +111,7 @@ func BenchmarkFlowOperations(b *testing.B) {
 		b.ReportAllocs()
 		f := flow.NewFlow(data)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			f.Map(func(x int) int { return x * 2 }).Count()
 		}
 	})
@@ -121,7 +120,7 @@ func BenchmarkFlowOperations(b *testing.B) {
 		b.ReportAllocs()
 		f := flow.NewFlow(data)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			f.Take(10).Collect()
 		}
 	})
@@ -143,7 +142,7 @@ func BenchmarkFlowOperations(b *testing.B) {
 func BenchmarkLazyVsEager(b *testing.B) {
 	b.Run("Lazy - Take 5 from infinite", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			flow.Infinite(func(x int) int { return x }).
 				Take(5).
 				Collect()
@@ -152,7 +151,7 @@ func BenchmarkLazyVsEager(b *testing.B) {
 
 	b.Run("Eager - Generate 100 then take 5", func(b *testing.B) {
 		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			data := make([]int, 100)
 			for j := range data {
 				data[j] = j
@@ -235,7 +234,7 @@ func BenchmarkChunkOperations(b *testing.B) {
 		b.ReportAllocs()
 		f := flow.NewFlow(data)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			flow.Chunk(f, 10).Count()
 		}
 	})
@@ -244,7 +243,7 @@ func BenchmarkChunkOperations(b *testing.B) {
 		b.ReportAllocs()
 		f := flow.NewFlow(data)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			flow.Chunk(f, 100).Count()
 		}
 	})
@@ -253,7 +252,7 @@ func BenchmarkChunkOperations(b *testing.B) {
 		b.ReportAllocs()
 		f := flow.NewFlow(data)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			flow.Chunk(f, 1000).Count()
 		}
 	})

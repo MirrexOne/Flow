@@ -2,8 +2,9 @@ package flow_test
 
 import (
 	"fmt"
-	. "github.com/MirrexOne/Flow"
 	"testing"
+
+	. "github.com/MirrexOne/Flow"
 )
 
 func TestCombine(t *testing.T) {

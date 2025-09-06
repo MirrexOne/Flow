@@ -9,11 +9,12 @@ package flow
 //	strings := flow.MapTo(flow.Range(1, 6), func(x int) string {
 //	    return fmt.Sprintf("Number: %d", x)
 //	})
-func MapTo[T, R any](f Flow[T], mapper func(T) R) Flow[R] {
-	return Flow[R]{
-		source: func(yield func(R) bool) {
-			for val := range f.source {
-				if !yield(mapper(val)) {
+func MapTo[T, U, R any](f Flow[T, R], mapper func(T) U) Flow[U, U] {
+	return Flow[U, U]{
+		source: func(yield func(U, U) bool) {
+			for k, _ := range f.source {
+				res := mapper(k)
+				if !yield(res, res) {
 					return
 				}
 			}
@@ -28,14 +29,14 @@ func MapTo[T, R any](f Flow[T], mapper func(T) R) Flow[R] {
 // Example:
 //
 //	unique := flow.Distinct(flow.NewFlow([]int{1, 2, 2, 3, 3, 3, 4}))
-func Distinct[T comparable](f Flow[T]) Flow[T] {
-	return Flow[T]{
-		source: func(yield func(T) bool) {
+func Distinct[T comparable, R any](f Flow[T, R]) Flow[T, R] {
+	return Flow[T, R]{
+		source: func(yield func(T, R) bool) {
 			seen := make(map[T]bool)
-			for val := range f.source {
-				if !seen[val] {
-					seen[val] = true
-					if !yield(val) {
+			for k, v := range f.source {
+				if !seen[k] {
+					seen[k] = true
+					if !yield(k, v) {
 						return
 					}
 				}
@@ -53,13 +54,13 @@ func Distinct[T comparable](f Flow[T]) Flow[T] {
 //	letters := flow.FlatMap(words, func(word string) flow.Flow[rune] {
 //	    return flow.NewFlow([]rune(word))
 //	})
-func FlatMap[T, R any](f Flow[T], mapper func(T) Flow[R]) Flow[R] {
-	return Flow[R]{
-		source: func(yield func(R) bool) {
-			for val := range f.source {
-				subFlow := mapper(val)
-				for subVal := range subFlow.source {
-					if !yield(subVal) {
+func FlatMap[T, U, R1, R2 any](f Flow[T, R1], mapper func(T) Flow[U, R2]) Flow[U, R2] {
+	return Flow[U, R2]{
+		source: func(yield func(U, R2) bool) {
+			for k, _ := range f.source {
+				subFlow := mapper(k)
+				for subK, subV := range subFlow.source {
+					if !yield(subK, subV) {
 						return
 					}
 				}
@@ -75,27 +76,27 @@ func FlatMap[T, R any](f Flow[T], mapper func(T) Flow[R]) Flow[R] {
 //
 //	chunks := flow.Chunk(flow.Range(1, 11), 3)
 //	// Produces: [1,2,3], [4,5,6], [7,8,9], [10]
-func Chunk[T any](f Flow[T], size int) Flow[[]T] {
+func Chunk[T, R any](f Flow[T, R], size int) Flow[[]T, []T] {
 	if size <= 0 {
 		panic("chunk size must be positive")
 	}
 
-	return Flow[[]T]{
-		source: func(yield func([]T) bool) {
+	return Flow[[]T, []T]{
+		source: func(yield func([]T, []T) bool) {
 			chunk := make([]T, 0, size)
-			for val := range f.source {
-				chunk = append(chunk, val)
+			for k, _ := range f.source {
+				chunk = append(chunk, k)
 				if len(chunk) == size {
 					chunkCopy := make([]T, len(chunk))
 					copy(chunkCopy, chunk)
-					if !yield(chunkCopy) {
+					if !yield(chunkCopy, chunkCopy) {
 						return
 					}
 					chunk = chunk[:0]
 				}
 			}
 			if len(chunk) > 0 {
-				yield(chunk)
+				yield(chunk, chunk)
 			}
 		},
 	}
@@ -110,23 +111,24 @@ func Chunk[T any](f Flow[T], size int) Flow[[]T] {
 //	ages := flow.NewFlow([]int{25, 30})
 //	pairs := flow.Combine(names, ages)
 //	// Produces: {First: "Alice", Second: 25}, {First: "Bob", Second: 30}
-func Combine[T, U any](f1 Flow[T], f2 Flow[U]) Flow[Pair[T, U]] {
-	return Flow[Pair[T, U]]{
-		source: func(yield func(Pair[T, U]) bool) {
+func Combine[T, U, R1, R2 any](f1 Flow[T, R1], f2 Flow[U, R2]) Flow[Pair[T, U], Pair[T, U]] {
+	return Flow[Pair[T, U], Pair[T, U]]{
+		source: func(yield func(Pair[T, U], Pair[T, U]) bool) {
 			var vals1 []T
 			var vals2 []U
 
-			for val := range f1.source {
-				vals1 = append(vals1, val)
+			for k, _ := range f1.source {
+				vals1 = append(vals1, k)
 			}
-			for val := range f2.source {
-				vals2 = append(vals2, val)
+			for k, _ := range f2.source {
+				vals2 = append(vals2, k)
 			}
 
 			minLen := min(len(vals2), len(vals1))
 
 			for i := range minLen {
-				if !yield(Pair[T, U]{First: vals1[i], Second: vals2[i]}) {
+				pair := Pair[T, U]{First: vals1[i], Second: vals2[i]}
+				if !yield(pair, pair) {
 					return
 				}
 			}
@@ -153,23 +155,24 @@ type Pair[T, U any] struct {
 //	    return fmt.Sprintf("%s is %d years old", name, age)
 //	})
 //	// Produces: "Alice is 25 years old", "Bob is 30 years old"
-func CombineWith[T, U, R any](f1 Flow[T], f2 Flow[U], combiner func(T, U) R) Flow[R] {
-	return Flow[R]{
-		source: func(yield func(R) bool) {
+func CombineWith[T, U, V, R1, R2 any](f1 Flow[T, R1], f2 Flow[U, R2], combiner func(T, U) V) Flow[V, V] {
+	return Flow[V, V]{
+		source: func(yield func(V, V) bool) {
 			var vals1 []T
 			var vals2 []U
 
-			for val := range f1.source {
-				vals1 = append(vals1, val)
+			for k, _ := range f1.source {
+				vals1 = append(vals1, k)
 			}
-			for val := range f2.source {
-				vals2 = append(vals2, val)
+			for k, _ := range f2.source {
+				vals2 = append(vals2, k)
 			}
 
 			minLen := min(len(vals2), len(vals1))
 
 			for i := range minLen {
-				if !yield(combiner(vals1[i], vals2[i])) {
+				result := combiner(vals1[i], vals2[i])
+				if !yield(result, result) {
 					return
 				}
 			}
@@ -193,16 +196,16 @@ func CombineWith[T, U, R any](f1 Flow[T], f2 Flow[U], combiner func(T, U) R) Flo
 //	// Can also chain with method:
 //	merged2 := flow1.Merge(flow2, flow3)
 //	// Produces: 1, 2, 3, 4, 5, 6, 7, 8, 9
-func Merge[T any](flows ...Flow[T]) Flow[T] {
+func Merge[T, R any](flows ...Flow[T, R]) Flow[T, R] {
 	if len(flows) == 0 {
-		return Empty[T]()
+		return Flow[T, R]{source: func(yield func(T, R) bool) {}}
 	}
 
-	return Flow[T]{
-		source: func(yield func(T) bool) {
+	return Flow[T, R]{
+		source: func(yield func(T, R) bool) {
 			for _, f := range flows {
-				for val := range f.source {
-					if !yield(val) {
+				for k, v := range f.source {
+					if !yield(k, v) {
 						return
 					}
 				}
@@ -220,11 +223,11 @@ func Merge[T any](flows ...Flow[T]) Flow[T] {
 //	people := []Person{{Name: "Alice", Age: 25}, {Name: "Bob", Age: 30}, {Name: "Charlie", Age: 25}}
 //	byAge := flow.GroupBy(flow.NewFlow(people), func(p Person) int { return p.Age })
 //	// Result: map[25:[{Alice 25} {Charlie 25}] 30:[{Bob 30}]]
-func GroupBy[T any, K comparable](f Flow[T], keyFunc func(T) K) map[K][]T {
+func GroupBy[T, R any, K comparable](f Flow[T, R], keyFunc func(T) K) map[K][]T {
 	result := make(map[K][]T)
-	for val := range f.source {
-		key := keyFunc(val)
-		result[key] = append(result[key], val)
+	for k, _ := range f.source {
+		key := keyFunc(k)
+		result[key] = append(result[key], k)
 	}
 	return result
 }
@@ -240,12 +243,13 @@ func GroupBy[T any, K comparable](f Flow[T], keyFunc func(T) K) map[K][]T {
 //	groups.ForEach(func(kv KeyValue[int, []Person]) {
 //	    fmt.Printf("Age %d: %v\n", kv.Key, kv.Value)
 //	})
-func GroupByFlow[T any, K comparable](f Flow[T], keyFunc func(T) K) Flow[KeyValue[K, []T]] {
-	return Flow[KeyValue[K, []T]]{
-		source: func(yield func(KeyValue[K, []T]) bool) {
+func GroupByFlow[T, R any, K comparable](f Flow[T, R], keyFunc func(T) K) Flow[KeyValue[K, []T], KeyValue[K, []T]] {
+	return Flow[KeyValue[K, []T], KeyValue[K, []T]]{
+		source: func(yield func(KeyValue[K, []T], KeyValue[K, []T]) bool) {
 			groups := GroupBy(f, keyFunc)
 			for key, values := range groups {
-				if !yield(KeyValue[K, []T]{Key: key, Value: values}) {
+				kv := KeyValue[K, []T]{Key: key, Value: values}
+				if !yield(kv, kv) {
 					return
 				}
 			}
@@ -269,7 +273,7 @@ type KeyValue[K comparable, V any] struct {
 //	evens, odds := flow.Partition(flow.Range(1, 11), func(x int) bool { return x%2 == 0 })
 //	// evens: [2, 4, 6, 8, 10]
 //	// odds: [1, 3, 5, 7, 9]
-func Partition[T any](f Flow[T], predicate func(T) bool) (matching []T, notMatching []T) {
+func Partition[T, U any](f Flow[T, U], predicate func(T) bool) (matching []T, notMatching []T) {
 	for val := range f.source {
 		if predicate(val) {
 			matching = append(matching, val)
@@ -293,7 +297,7 @@ func Partition[T any](f Flow[T], predicate func(T) bool) (matching []T, notMatch
 //	// Tumbling window with size=3, step=3
 //	windows := flow.Window(flow.Range(1, 10), 3, 3)
 //	// Produces: [1,2,3], [4,5,6], [7,8,9]
-func Window[T any](f Flow[T], size, step int) Flow[[]T] {
+func Window[T, U any](f Flow[T, U], size, step int) Flow[[]T, U] {
 	if size <= 0 {
 		panic("window size must be positive")
 	}
@@ -301,17 +305,17 @@ func Window[T any](f Flow[T], size, step int) Flow[[]T] {
 		panic("window step must be positive")
 	}
 
-	return Flow[[]T]{
-		source: func(yield func([]T) bool) {
+	return Flow[[]T, U]{
+		source: func(yield func([]T, U) bool) {
 			var buffer []T
-			for val := range f.source {
+			for val, val2 := range f.source {
 				buffer = append(buffer, val)
 
 				for len(buffer) >= size {
 					window := make([]T, size)
 					copy(window, buffer[:size])
 
-					if !yield(window) {
+					if !yield(window, val2) {
 						return
 					}
 
